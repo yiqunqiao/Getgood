@@ -24,19 +24,6 @@ python run.py
 
 Windows PowerShell: use `py -m venv .venv` and `.venv\Scripts\Activate.ps1`, then the same install/run commands. If port 8000 is occupied, stop the old process or run `python -m uvicorn backend.app:app --host 127.0.0.1 --port 8001` and open port 8001.
 
-## 演示操作（中文）
-
-1. 点击底部 **Reset demo progress**，清空前一次演示的数据。
-2. 第一题：点 **Load first attempt example** → **Submit**。展示漏掉风险的反馈。
-3. 点 **Revise this submission**，点两次 **Get the next hint**。
-4. 点 **Load evidence example** → **Submit**。真实运行测试，得到 **Needs guidance**。
-5. 进入第二题，点 **Load evidence example** → **Submit**。得到 **Independent**。
-6. 进入第三题，点 **Load evidence example** → **Submit**。合法新请求通过，错误变体被发现，得到 **Verified across scenarios**。
-7. 可返回第三题，用 **Load overblocking example** 提交，展示错误拦截合法请求的结果；这次错误会使等级下降一级。
-8. **Growth record** 查看每次提交的记录。**PR preview** 是明确标注的未来工作流示意页。
-
-演示答案按钮仅填入表单，结果并非预设：每次提交都实际运行 pytest。编辑测试可以改变结果。正式尝试时可直接修改模板，不使用演示答案。
-
 ## Architecture
 
 - `frontend/`: English HTML/CSS/JavaScript UI, served by FastAPI. No Node build step, CDN or external fonts.

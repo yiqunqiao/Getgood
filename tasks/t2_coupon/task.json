@@ -1,0 +1,40 @@
+{
+  "id": "t2_coupon",
+  "title": "Claim a voucher",
+  "stage": "Independent",
+  "description": "A campaign permits multiple claims by the same user while stock remains. Retries with the same request_id must issue only one voucher. New request IDs are legitimate new claims.",
+  "known_risks": [
+    {
+      "type": "duplicate",
+      "line": 5
+    }
+  ],
+  "required_variants": [
+    "v1",
+    "v2"
+  ],
+  "hints": [],
+  "boundaries": [
+    {
+      "id": "seq_retry",
+      "label": "Sequential retries",
+      "variants": [
+        "v1",
+        "v2"
+      ]
+    },
+    {
+      "id": "new_request",
+      "label": "New request, same business details",
+      "variants": [
+        "v3"
+      ]
+    },
+    {
+      "id": "concurrent",
+      "label": "Concurrent requests",
+      "variants": []
+    }
+  ],
+  "template": "def test_first_operation(env):\n    campaign = env.make_campaign(remaining=5)\n    env.svc.claim_coupon(\"u-1\", campaign.id, request_id=\"r-1\")\n    assert len(env.wallet.calls) == 1\n"
+}

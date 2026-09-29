@@ -1,0 +1,35 @@
+{
+  "id": "t3_legit_refund",
+  "title": "A legitimate second refund",
+  "stage": "Exception",
+  "description": "A $100 payment receives a $30 refund on Monday (r-1) and another $30 refund on Wednesday (r-2). Review the code: does it handle sequential retries while permitting the legitimate second refund? Concurrent requests are outside the validated scope.",
+  "known_risks": [],
+  "required_variants": [
+    "v1",
+    "v3"
+  ],
+  "hints": [],
+  "boundaries": [
+    {
+      "id": "seq_retry",
+      "label": "Sequential retries",
+      "variants": [
+        "v1",
+        "v2"
+      ]
+    },
+    {
+      "id": "new_request",
+      "label": "New request, same business details",
+      "variants": [
+        "v3"
+      ]
+    },
+    {
+      "id": "concurrent",
+      "label": "Concurrent requests",
+      "variants": []
+    }
+  ],
+  "template": "def test_first_operation(env):\n    pay = env.make_payment(amount_cents=10_000)\n    env.svc.refund(pay.id, 3_000, request_id=\"r-1\")\n    assert len(env.gateway.calls) == 1\n"
+}

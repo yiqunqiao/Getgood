@@ -1,0 +1,44 @@
+{
+  "id": "t1_refund",
+  "title": "Partial refunds",
+  "stage": "Guided",
+  "description": "A merchant can partially refund a successful payment. Network retries use the same request_id and must cause only one gateway refund. A new request_id may refund the same amount again, within the original payment total.",
+  "known_risks": [
+    {
+      "type": "duplicate",
+      "line": 7
+    }
+  ],
+  "required_variants": [
+    "v1",
+    "v2"
+  ],
+  "hints": [
+    "Think about the same operation arriving twice.",
+    "A network timeout may cause the client to retry.",
+    "Is request_id checked before the external side effect?"
+  ],
+  "boundaries": [
+    {
+      "id": "seq_retry",
+      "label": "Sequential retries",
+      "variants": [
+        "v1",
+        "v2"
+      ]
+    },
+    {
+      "id": "new_request",
+      "label": "New request, same business details",
+      "variants": [
+        "v3"
+      ]
+    },
+    {
+      "id": "concurrent",
+      "label": "Concurrent requests",
+      "variants": []
+    }
+  ],
+  "template": "def test_first_operation(env):\n    pay = env.make_payment(amount_cents=10_000)\n    env.svc.refund(pay.id, 3_000, request_id=\"r-1\")\n    assert len(env.gateway.calls) == 1\n"
+}

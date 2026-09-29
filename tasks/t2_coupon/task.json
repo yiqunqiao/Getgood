@@ -36,5 +36,11 @@
       "variants": []
     }
   ],
-  "template": "def test_first_operation(env):\n    campaign = env.make_campaign(remaining=5)\n    env.svc.claim_coupon(\"u-1\", campaign.id, request_id=\"r-1\")\n    assert len(env.wallet.calls) == 1\n"
+  "template": "def test_first_operation(env):\n    campaign = env.make_campaign(remaining=5)\n    env.svc.claim_coupon(\"u-1\", campaign.id, request_id=\"r-1\")\n    assert len(env.wallet.calls) == 1\n",
+  "risk_locations": {
+    "duplicate": [
+      1,
+      5
+    ]
+  }
 }

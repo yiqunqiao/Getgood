@@ -56,7 +56,7 @@ def tasks():
     result=[]
     for id in ['t1_refund','t2_coupon','t3_legit_refund']:
         task=task_for(id)
-        public={k:v for k,v in task.items() if k not in ['known_risks','required_variants','hints','boundaries']}
+        public={k:v for k,v in task.items() if k not in ['known_risks','risk_locations','required_variants','hints','boundaries']}
         public['boundaries']=[{k:v for k,v in b.items() if k!='variants'} for b in task['boundaries']]
         public['code']=(ROOT/'tasks'/id/'shown.py').read_text()
         result.append(public)
@@ -94,6 +94,29 @@ def run(submission:Submission):
     task_for(submission.task_id)
     return run_tests(submission.task_id,'reference',submission.tests)
 
+def evidence_reason(result, independent):
+    if result['success']:
+        return ('Required variants caught, legitimate reference behaviour accepted, and boundary claims supported. '
+                + ('Completed without hints.' if independent else 'Completed with guidance.'))
+    reasons=[]
+    if result['judgement']['missed']: reasons.append('A risk was missed.')
+    if result['judgement']['false_positive']: reasons.append('A risk judgement was not supported.')
+    if result['reference']['status']=='failed': reasons.append('Tests rejected legitimate reference behaviour.')
+    elif result['reference']['status']!='passed': reasons.append('Tests could not establish valid evidence.')
+    elif not all(v['caught'] for v in result['variants'].values()): reasons.append('Required behavioural evidence is incomplete.')
+    if 'unsupported' in result['boundaries'].values(): reasons.append('A verified boundary claim lacks evidence.')
+    return ' '.join(reasons)
+
+@app.post('/api/compare')
+def compare(submission:Submission):
+    task=task_for(submission.task_id)
+    with LOCK:
+        result=evaluate(task,submission.model_dump())
+        s=state(); used=s['hints'].get(task['id'],0)
+    return {**result,'recorded':False,'hints_used':used,'previous_level':s['level'],
+            'level':s['level'],'reason':evidence_reason(result,result['success'] and used==0),
+            'level_reason':'Comparison only. Growth record and level are unchanged.'}
+
 @app.post('/api/submit')
 def submit(submission:Submission):
     task=task_for(submission.task_id)
@@ -113,11 +136,21 @@ def submit(submission:Submission):
                 if {'t2_coupon','t3_legit_refund'}<=previous: s['level']=levels[2]
         else:
             s['level']=levels[max(0,levels.index(old)-1)]
-        reason=('Passed without hints.' if independent else 'Passed with guidance.' if result['success'] else 'More evidence or a corrected judgement is needed.')
+        reason=evidence_reason(result,independent)
+        if not result['success']:
+            level_reason='Unsuccessful recorded submission lowers the level by one, to a minimum of Needs guidance.'
+        elif s['level']=='Verified across scenarios':
+            level_reason='Independent evidence exists for both the coupon scenario and the legitimate refund exception.'
+        elif independent:
+            level_reason='Successful evidence without hints establishes independent performance.'
+        else:
+            level_reason='Guided success adds evidence but does not raise the independent level.'
         entry=dict(task_id=task['id'],title=task['title'],time=datetime.now(timezone.utc).isoformat(),
-            independent=independent,hints_used=used,level=s['level'],reason=reason,result=result)
+            independent=independent,hints_used=used,previous_level=old,level=s['level'],reason=reason,
+            level_reason=level_reason,result=result,boundary_claims=submission.boundaries)
         s['history'].append(entry); save(s)
-    return {**result,'hints_used':used,'level':s['level'],'reason':reason}
+    return {**result,'recorded':True,'hints_used':used,'previous_level':old,'level':s['level'],
+            'reason':reason,'level_reason':level_reason}
 
 @app.get('/')
 def home(): return FileResponse(ROOT/'frontend/index.html')

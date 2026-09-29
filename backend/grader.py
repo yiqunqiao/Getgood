@@ -61,9 +61,12 @@ def evaluate(task, submission):
         else: variants[variant]=dict(status='not_run',caught=False,tests=0,details=[])
     expected=task['known_risks']
     claims=submission['judgements']
-    hit=[risk for risk in expected if risk in claims]
-    missed=[risk for risk in expected if risk not in claims]
-    false_positive=[claim for claim in claims if claim not in expected]
+    def matches(risk, claim):
+        lines=task.get('risk_locations',{}).get(risk['type'],[risk['line']])
+        return claim['type']==risk['type'] and claim['line'] in lines
+    hit=[risk for risk in expected if any(matches(risk,c) for c in claims)]
+    missed=[risk for risk in expected if not any(matches(risk,c) for c in claims)]
+    false_positive=[claim for claim in claims if not any(matches(r,claim) for r in expected)]
     judgement_ok=not missed and not false_positive
     boundaries={}
     for boundary in task['boundaries']:

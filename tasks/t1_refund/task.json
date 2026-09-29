@@ -40,5 +40,11 @@
       "variants": []
     }
   ],
-  "template": "def test_first_operation(env):\n    pay = env.make_payment(amount_cents=10_000)\n    env.svc.refund(pay.id, 3_000, request_id=\"r-1\")\n    assert len(env.gateway.calls) == 1\n"
+  "template": "def test_first_operation(env):\n    pay = env.make_payment(amount_cents=10_000)\n    env.svc.refund(pay.id, 3_000, request_id=\"r-1\")\n    assert len(env.gateway.calls) == 1\n",
+  "risk_locations": {
+    "duplicate": [
+      1,
+      7
+    ]
+  }
 }

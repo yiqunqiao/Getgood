@@ -62,3 +62,41 @@ def test_public_api_and_token(client):
     assert client.get('/static/style.css').status_code==200
     client.headers.pop('X-GetGood-Token')
     assert client.post('/api/reset').status_code==403
+
+
+def test_comparison_preserves_growth_and_promotion(client):
+    client.post('/api/hint/t1_refund')
+    client.post('/api/submit',json=example(client,'t1_refund'))
+    client.post('/api/submit',json=example(client,'t2_coupon'))
+    before=client.get('/api/progress').json()
+    raw=(module.DATA/'progress.json').read_bytes()
+    for kind in ['bad','good']:
+        result=client.post('/api/compare',json=example(client,'t3_legit_refund',kind)).json()
+        assert result['recorded'] is False
+        assert result['success']==(kind=='good')
+        assert result['level']==result['previous_level']=='Independent'
+        assert (module.DATA/'progress.json').read_bytes()==raw
+        assert client.get('/api/progress').json()==before
+    result=client.post('/api/submit',json=example(client,'t3_legit_refund')).json()
+    assert result['previous_level']=='Independent'
+    assert result['level']=='Verified across scenarios'
+    assert len(client.get('/api/progress').json()['history'])==3
+
+
+def test_risk_locations_and_boundary_history(client):
+    for task in ['t1_refund','t2_coupon']:
+        payload=example(client,task)
+        payload['judgements'][0]['line']=1
+        payload['boundaries']['concurrent']='need_mentor'
+        result=client.post('/api/submit',json=payload).json()
+        assert result['success'] and result['judgement']['correct']
+        entry=client.get('/api/progress').json()['history'][-1]
+        assert entry['boundary_claims']['concurrent']=='need_mentor'
+        assert entry['result']['boundaries']['concurrent']=='need_mentor'
+        assert entry['previous_level'] and entry['level_reason']
+        payload['judgements'][0]['line']=2
+        wrong=client.post('/api/compare',json=payload).json()
+        assert wrong['judgement']['missed'] and wrong['judgement']['false_positive']
+        payload['judgements'][0]={'line':1,'type':'precision'}
+        assert not client.post('/api/compare',json=payload).json()['judgement']['correct']
+    assert all('risk_locations' not in t for t in client.get('/api/tasks').json())

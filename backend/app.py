@@ -46,10 +46,22 @@ def state():
             if (isinstance(saved,dict) and saved.get('level') in
                     ['Needs guidance','Independent','Verified across scenarios'] and
                     isinstance(saved.get('history'),list) and isinstance(saved.get('hints'),dict)):
+                if not isinstance(saved.get('assistance'),dict):
+                    saved['assistance']={}
+                # Older progress files predate assistance tracking. A recorded
+                # submission has already exposed detailed feedback for that task.
+                for entry in saved['history']:
+                    if isinstance(entry,dict) and entry.get('task_id') in ['t1_refund','t2_coupon','t3_legit_refund']:
+                        saved['assistance'].setdefault(
+                            entry['task_id'],{'demo_used':False,'feedback_seen':True})
                 return saved
         except (OSError,UnicodeError,json.JSONDecodeError):
             pass
-    return dict(level='Needs guidance',history=[],hints={})
+    return dict(level='Needs guidance',history=[],hints={},assistance={})
+
+def assistance_for(progress,task_id):
+    return progress.setdefault('assistance',{}).setdefault(
+        task_id,{'demo_used':False,'feedback_seen':False})
 
 def save(value):
     DATA.mkdir(exist_ok=True)
@@ -77,7 +89,7 @@ def progress():
 
 @app.post('/api/reset')
 def reset():
-    with LOCK: save(dict(level='Needs guidance',history=[],hints={}))
+    with LOCK: save(dict(level='Needs guidance',history=[],hints={},assistance={}))
     return {'ok':True}
 
 @app.post('/api/hint/{task_id}')
@@ -89,10 +101,15 @@ def hint(task_id:str):
         s['hints'][task_id]=used; save(s)
     return dict(used=used,text=task['hints'][used-1])
 
-@app.get('/api/demo/{task_id}/{kind}')
+@app.post('/api/demo/{task_id}/{kind}')
 def demo(task_id:str,kind:Literal['good','bad']):
     task=task_for(task_id)
-    return dict(tests=(ROOT/'tasks'/task_id/f'demo_{kind}.py').read_text(),
+    tests=(ROOT/'tasks'/task_id/f'demo_{kind}.py').read_text()
+    with LOCK:
+        progress=state()
+        assistance_for(progress,task_id)['demo_used']=True
+        save(progress)
+    return dict(tests=tests,
         judgements=task['known_risks'] if kind=='good' else [],
         consequence=task['expected_consequence'] if kind=='good' else 'unrelated',
         boundaries={'seq_retry':'verified' if kind=='good' else 'unverified',
@@ -104,12 +121,10 @@ def run(submission:Submission):
     task_for(submission.task_id)
     return run_tests(submission.task_id,'reference',submission.tests)
 
-def evidence_reason(result, independent, guided=False):
+def evidence_reason(result, completion):
     if result['success']:
-        completion=('Completed in the Guided stage.' if guided else
-                    'Completed without hints.' if independent else 'Completed with guidance.')
         return ('Required variants caught, legitimate reference behaviour accepted, and verified boundary claims supported. '
-                + completion)
+                + completion+'.')
     reasons=[]
     if result['judgement']['missed']: reasons.append('A risk was missed.')
     if result['judgement']['false_positive']: reasons.append('A risk judgement was not supported.')
@@ -127,9 +142,12 @@ def compare(submission:Submission):
     with LOCK:
         result=evaluate(task,submission.model_dump())
         s=state(); used=s['hints'].get(task['id'],0)
+        assistance_for(s,task['id'])['feedback_seen']=True
+        save(s)
     return {**result,'recorded':False,'hints_used':used,'previous_level':s['level'],
-            'level':s['level'],'reason':evidence_reason(result,result['success'] and used==0 and task['stage']!='Guided',task['stage']=='Guided'),
-            'level_reason':'Comparison only. Growth record and level are unchanged.'}
+            'level':s['level'],'completion':'Comparison only',
+            'reason':evidence_reason(result,'Comparison completed'),
+            'level_reason':'Comparison does not change the level or submission history. Later attempts on this exercise count as practice after feedback.'}
 
 @app.post('/api/submit')
 def submit(submission:Submission):
@@ -138,7 +156,15 @@ def submit(submission:Submission):
     with LOCK:
         result=evaluate(task,submission.model_dump())
         s=state(); used=s['hints'].get(task['id'],0)
-        independent=result['success'] and used==0 and task['stage']!='Guided'
+        assistance=assistance_for(s,task['id']).copy()
+        independent=(result['success'] and used==0 and task['stage']!='Guided'
+                     and not assistance['demo_used'] and not assistance['feedback_seen'])
+        completion=('Needs revision' if not result['success'] else
+                    'Demonstration completed' if assistance['demo_used'] else
+                    'Guided practice completed' if task['stage']=='Guided' else
+                    'Practice completed after feedback' if assistance['feedback_seen'] else
+                    'Practice completed with hints' if used else
+                    'Completed without recorded assistance')
         old=s['level']
         levels=['Needs guidance','Independent','Verified across scenarios']
         if result['success']:
@@ -150,21 +176,30 @@ def submit(submission:Submission):
                 if {'t2_coupon','t3_legit_refund'}<=previous: s['level']=levels[2]
         else:
             s['level']=levels[max(0,levels.index(old)-1)]
-        reason=evidence_reason(result,independent,task['stage']=='Guided')
+        reason=evidence_reason(result,completion)
         if not result['success']:
             level_reason='Unsuccessful recorded submission lowers the level by one, to a minimum of Needs guidance.'
         elif s['level']=='Verified across scenarios':
             level_reason='Independent evidence exists for both the coupon scenario and the legitimate refund exception.'
         elif independent:
             level_reason='Successful evidence without hints establishes independent performance.'
+        elif assistance['demo_used']:
+            level_reason='A presentation example was loaded for this exercise. The result is recorded as a demonstration, not independent evidence.'
+        elif task['stage']=='Guided':
+            level_reason='Guided practice adds evidence but does not raise the independent level.'
+        elif used:
+            level_reason='Hints were used for this exercise. The pass adds practice evidence but does not raise the independent level.'
         else:
-            level_reason='Guided success adds evidence but does not raise the independent level.'
+            level_reason='Earlier detailed feedback was shown for this exercise. This pass counts as practice, not independent evidence.'
         entry=dict(task_id=task['id'],title=task['title'],time=datetime.now(timezone.utc).isoformat(),
-            independent=independent,hints_used=used,previous_level=old,level=s['level'],reason=reason,
+            independent=independent,completion=completion,assistance=assistance,
+            hints_used=used,previous_level=old,level=s['level'],reason=reason,
             level_reason=level_reason,result=result,boundary_claims=submission.boundaries)
-        s['history'].append(entry); save(s)
+        s['history'].append(entry)
+        assistance_for(s,task['id'])['feedback_seen']=True
+        save(s)
     return {**result,'recorded':True,'hints_used':used,'previous_level':old,'level':s['level'],
-            'reason':reason,'level_reason':level_reason}
+            'independent':independent,'completion':completion,'reason':reason,'level_reason':level_reason}
 
 @app.get('/')
 def home(): return FileResponse(ROOT/'frontend/index.html')

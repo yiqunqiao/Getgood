@@ -116,7 +116,7 @@ function exercise(id) {
   current = tasks.find((t) => t.id === id);
   const t = current;
   $("#view").innerHTML =
-    `<button class="back" id="back">← All exercises</button><div class="eyebrow">${t.stage.toUpperCase()} / EXERCISE ${tasks.indexOf(t) + 1}</div><h1>${escapeHTML(t.title)}</h1><div class="toolbar"><span class="demo-label">PRESENTATION SHORTCUTS</span><button class="secondary" id="demo-bad">Load ${t.stage === "Exception" ? "overblocking" : "first attempt"} example</button><button class="secondary" id="demo-good">Load evidence example</button><span class="demo-label">Examples fill the form; Submit still runs tests.</span></div><div class="split"><div><section class="panel"><div class="panel-title">01 / UNDERSTAND THE REQUIREMENT</div><p>${escapeHTML(t.description)}</p><small class="muted">Scope: sequential operations, integer cents. Concurrency is not verified.</small></section><section class="panel"><div class="panel-title">CODE UNDER REVIEW · CLICK A LINE TO MARK IT</div><div class="code">${t.code
+    `<button class="back" id="back">← All exercises</button><div class="eyebrow">${t.stage.toUpperCase()} / EXERCISE ${tasks.indexOf(t) + 1}</div><h1>${escapeHTML(t.title)}</h1><div class="toolbar"><span class="demo-label">PRESENTATION SHORTCUTS</span><button class="secondary" id="demo-bad">Load ${t.stage === "Exception" ? "overblocking" : "first attempt"} example</button><button class="secondary" id="demo-good">Load evidence example</button><span class="demo-label">Loading either example records demo assistance for this exercise.</span></div><p id="assistance-status" class="muted" role="status"></p><div class="split"><div><section class="panel"><div class="panel-title">01 / UNDERSTAND THE REQUIREMENT</div><p>${escapeHTML(t.description)}</p><small class="muted">Scope: sequential operations, integer cents. Concurrency is not verified.</small></section><section class="panel"><div class="panel-title">CODE UNDER REVIEW · CLICK A LINE TO MARK IT</div><div class="code">${t.code
       .trimEnd()
       .split("\n")
       .map(
@@ -125,8 +125,19 @@ function exercise(id) {
       )
       .join(
         "",
-      )}</div></section><section class="panel"><h3>Test toolkit</h3><p class="muted">Use <code>env.make_payment(amount_cents=10_000)</code> or <code>env.make_campaign(remaining=5)</code>. Call the code through <code>env.svc</code>.</p><p class="muted">Inspect <code>env.gateway.calls</code>, <code>env.wallet.calls</code> and <code>env.db</code>. Each test starts with fresh state.</p>${t.stage === "Guided" ? '<button id="hint" class="secondary">Get the next hint</button><div id="hint-text"></div>' : '<span class="tag">NO HINTS IN THIS STAGE</span>'}</section></div><div><section class="panel"><div class="panel-title">02 / MAKE A JUDGEMENT</div><label><input type="checkbox" id="no-risk" checked>No risk found within the stated scope</label><div class="row"><div class="field"><label for="line">Code line</label><input id="line" type="number" min="1" max="${t.code.trimEnd().split("\n").length}" value="1"></div><div class="field"><label for="risk">Risk type</label><select id="risk"><option value="duplicate">Repeated operation</option><option value="precision">Amount precision</option><option value="over_limit">Over limit</option><option value="concurrent">Concurrency</option><option value="state">Invalid state</option><option value="other">Other</option></select></div></div><div class="consequence-field"><div class="panel-title">03 / EXPLAIN THE CONSEQUENCE</div><label for="consequence">${t.stage === "Exception" ? "What should happen to a second refund with a new request_id?" : "What can happen when the same request_id is retried?"}</label><select id="consequence"><option value="">Choose an outcome…</option><option value="duplicate_effect">The external refund or voucher is issued twice</option><option value="legitimate_request">A new request is allowed as a separate operation</option><option value="unrelated">Only the screen label changes</option></select></div><div class="panel-title section-gap evidence-title">04 / WRITE THE EVIDENCE</div><label for="tests">Python tests · pytest</label><textarea id="tests" spellcheck="false" aria-label="Python test editor"></textarea><div class="row"><button id="run" class="secondary">Run on reference</button><small class="muted">A self-check; progress is unchanged.</small></div><div id="run-result" role="status"></div></section><section class="panel"><div class="panel-title boundary-title">05 / DECLARE YOUR BOUNDARIES</div>${t.boundaries.map((b) => `<div class="boundary"><label for="boundary-${b.id}">${escapeHTML(b.label)}</label><select id="boundary-${b.id}"><option value="unverified">Not verified</option><option value="verified">Verified</option><option value="need_mentor">Need guidance</option></select></div>`).join("")}<p class="muted">An honest “not verified” is welcome. A verified claim needs evidence.</p><div class="row"><button id="submit" class="primary">Submit & record →</button><button id="compare" class="secondary">Compare without recording</button></div><p class="muted">Comparison runs the full evaluation. It does not change your growth record or level.</p></section></div></div>`;
+      )}</div></section><section class="panel"><h3>Test toolkit</h3><p class="muted">Use <code>env.make_payment(amount_cents=10_000)</code> or <code>env.make_campaign(remaining=5)</code>. Call the code through <code>env.svc</code>.</p><p class="muted">Inspect <code>env.gateway.calls</code>, <code>env.wallet.calls</code> and <code>env.db</code>. Each test starts with fresh state.</p>${t.stage === "Guided" ? '<button id="hint" class="secondary">Get the next hint</button><div id="hint-text"></div>' : '<span class="tag">NO HINTS IN THIS STAGE</span>'}</section></div><div><section class="panel"><div class="panel-title">02 / MAKE A JUDGEMENT</div><label><input type="checkbox" id="no-risk" checked>No risk found within the stated scope</label><div class="row"><div class="field"><label for="line">Code line</label><input id="line" type="number" min="1" max="${t.code.trimEnd().split("\n").length}" value="1"></div><div class="field"><label for="risk">Risk type</label><select id="risk"><option value="duplicate">Repeated operation</option><option value="precision">Amount precision</option><option value="over_limit">Over limit</option><option value="concurrent">Concurrency</option><option value="state">Invalid state</option><option value="other">Other</option></select></div></div><div class="consequence-field"><div class="panel-title">03 / EXPLAIN THE CONSEQUENCE</div><label for="consequence">${t.stage === "Exception" ? "What should happen to a second refund with a new request_id?" : "What can happen when the same request_id is retried?"}</label><select id="consequence"><option value="">Choose an outcome…</option><option value="duplicate_effect">The external refund or voucher is issued twice</option><option value="legitimate_request">A new request is allowed as a separate operation</option><option value="unrelated">Only the screen label changes</option></select></div><div class="panel-title section-gap evidence-title">04 / WRITE THE EVIDENCE</div><label for="tests">Python tests · pytest</label><textarea id="tests" spellcheck="false" aria-label="Python test editor"></textarea><div class="row"><button id="run" class="secondary">Run on reference</button><small class="muted">A self-check; progress is unchanged.</small></div><div id="run-result" role="status"></div></section><section class="panel"><div class="panel-title boundary-title">05 / DECLARE YOUR BOUNDARIES</div>${t.boundaries.map((b) => `<div class="boundary"><label for="boundary-${b.id}">${escapeHTML(b.label)}</label><select id="boundary-${b.id}"><option value="unverified">Not verified</option><option value="verified">Verified</option><option value="need_mentor">Need guidance</option></select></div>`).join("")}<p class="muted">An honest “not verified” is welcome. A verified claim needs evidence.</p><div class="row"><button id="submit" class="primary">Submit & record →</button><button id="compare" class="secondary">Compare without recording</button></div><p class="muted">Comparison runs the full evaluation. It leaves your level and submission history unchanged, but later attempts on this exercise count as practice after feedback.</p></section></div></div>`;
   fill(drafts[id] || { tests: t.template, judgements: [], boundaries: {} });
+  api("progress")
+    .then((record) => {
+      if (current?.id !== id || !$("#assistance-status")) return;
+      const assistance = record.assistance?.[id];
+      $("#assistance-status").textContent = assistance?.demo_used
+        ? "A presentation example was loaded for this exercise. Later passes count as demonstration."
+        : assistance?.feedback_seen
+          ? "Detailed feedback was shown for this exercise. Later passes count as practice."
+          : "No example or detailed feedback has been recorded for this exercise.";
+    })
+    .catch((e) => notice(e.message));
   button("back", () => {
     drafts[id] = payload();
     overview();
@@ -153,9 +164,11 @@ function exercise(id) {
   for (const kind of ["good", "bad"])
     button("demo-" + kind, async () => {
       try {
-        fill(await api(`demo/${id}/${kind}`));
+        fill(await api(`demo/${id}/${kind}`, {}));
+        $("#assistance-status").textContent =
+          "A presentation example was loaded for this exercise. Later passes count as demonstration.";
         notice(
-          "Presentation example loaded. Click Submit to run the real tests.",
+          "Presentation example loaded. Tests still run; this exercise cannot earn independent credit in this local record.",
         );
       } catch (e) {
         notice(e.message);
@@ -215,7 +228,7 @@ function feedback(r) {
   const ref = r.reference.status;
   const hideDetails = t.stage === "Guided" && r.judgement.missed.length > 0;
   $("#view").innerHTML =
-    `${r.recorded === false ? '<div class="hint">COMPARISON ONLY · Not recorded · Level unchanged</div>' : ""}<div class="eyebrow">EVIDENCE REPORT / ${escapeHTML(t.title.toUpperCase())}</div><h1>${r.success ? "Your judgement has evidence." : "A chance to sharpen your judgement."}</h1><p class="muted">${escapeHTML(r.reason)} No AI score, and no cached result.</p><div class="result-grid"><section class="panel"><div class="panel-title">01 / JUDGEMENT</div>${row("Decision", r.judgement.correct ? "Correct" : "Needs revision", r.judgement.correct)}${row("Risks missed", r.judgement.missed.length, !r.judgement.missed.length)}${row("False positives", r.judgement.false_positive.length, !r.judgement.false_positive.length)}${hideDetails ? "" : row("Consequence judgement", r.consequence?.correct ? "Correct" : "Needs revision", r.consequence?.correct)}${t.stage === "Guided" && r.judgement.missed.length ? '<p class="muted">There is still a risk to find. Return to the exercise and try a hint.</p>' : ""}</section><section class="panel"><div class="panel-title">02 / TEST EVIDENCE</div>${row("Reference implementation", ref, ref === "passed")}${ref === "failed" ? '<p class="fail">Your assertions reject correct behaviour. Check for overblocking or an incorrect test expectation.</p>' : ""}${["error", "timeout"].includes(ref) ? '<p class="fail">Execution problem. This is not evidence of a detected risk.</p>' : ""}${Object.entries(
+    `${r.recorded === false ? '<div class="hint">COMPARISON ONLY · Level and submission history unchanged · Later attempts count as practice</div>' : ""}<div class="eyebrow">EVIDENCE REPORT / ${escapeHTML(t.title.toUpperCase())}</div><h1>${r.success ? "Your judgement has evidence." : "A chance to sharpen your judgement."}</h1><p><span class="tag">${escapeHTML(r.completion || (r.success ? "Evidence accepted" : "Needs revision"))}</span></p><p class="muted">${escapeHTML(r.reason)} No AI score, and no cached result.</p><div class="result-grid"><section class="panel"><div class="panel-title">01 / JUDGEMENT</div>${row("Decision", r.judgement.correct ? "Correct" : "Needs revision", r.judgement.correct)}${row("Risks missed", r.judgement.missed.length, !r.judgement.missed.length)}${row("False positives", r.judgement.false_positive.length, !r.judgement.false_positive.length)}${hideDetails ? "" : row("Consequence judgement", r.consequence?.correct ? "Correct" : "Needs revision", r.consequence?.correct)}${t.stage === "Guided" && r.judgement.missed.length ? '<p class="muted">There is still a risk to find. Return to the exercise and try a hint.</p>' : ""}</section><section class="panel"><div class="panel-title">02 / TEST EVIDENCE</div>${row("Reference implementation", ref, ref === "passed")}${ref === "failed" ? '<p class="fail">Your assertions reject correct behaviour. Check for overblocking or an incorrect test expectation.</p>' : ""}${["error", "timeout"].includes(ref) ? '<p class="fail">Execution problem. This is not evidence of a detected risk.</p>' : ""}${Object.entries(
       r.variants,
     )
       .map(
@@ -263,6 +276,7 @@ function evidenceDetails(h) {
  ${row("Risks missed", r.judgement.missed.length, !r.judgement.missed.length)}
  ${row("Risk judgements falsely flagged", r.judgement.false_positive.length, !r.judgement.false_positive.length)}
  ${hidden ? "" : row("Consequence judgement", r.consequence?.correct ? "Correct" : "Needs revision", r.consequence?.correct)}
+ ${row("Attempt type", h.completion || (h.independent ? "Completed without recorded assistance" : h.result.success ? "Practice completed" : "Needs revision"), h.independent)}
  ${row("Legitimate reference behaviour", r.reference.status === "passed" ? "Accepted by tests" : r.reference.status === "failed" ? "Rejected by tests" : r.reference.status, r.reference.status === "passed")}
  <p class="muted">A rejected reference may indicate overblocking or an incorrect test expectation.</p>
  ${Object.entries(r.variants)
@@ -295,20 +309,20 @@ async function growth() {
   $("#view").innerHTML =
     `<div class="eyebrow">THE RECORD BEHIND THE LABEL</div><h1>Growth you can inspect.</h1><p class="muted">Every level is backed by exercise results, hint use and declared boundaries.</p>
  <div class="strip"><div><span class="eyebrow">REPEATED OPERATIONS</span><h2>${escapeHTML(progress.level)}</h2></div><div><span class="eyebrow">CONCURRENT OPERATIONS</span><h2>${escapeHTML(concurrencyLabel(latest?.result.boundaries.concurrent))}</h2><small>Based on the latest recorded declaration. Concurrency has no validator.</small></div></div>
- <section class="panel" style="margin-top:24px"><h3>Submission history</h3>${progress.history.length ? progress.history.map((h, i) => `<article class="history-case"><h3>${i + 1}. ${escapeHTML(h.title)}</h3><p>${escapeHTML(h.previous_level || (i ? progress.history[i - 1].level : "Needs guidance"))} → <b>${escapeHTML(h.level)}</b></p><p class="${h.result.success ? "pass" : "fail"}">${h.result.success ? "Evidence accepted" : "Needs revision"} · ${h.hints_used} hints</p>${evidenceDetails(h)}</article>`).join("") : '<div class="empty">No submissions yet. Start in the practice room.</div>'}</section>
- <p class="muted">Verified across scenarios requires independent success in the coupon and refund-exception exercises. An unsuccessful recorded submission lowers the level by one. Comparisons never affect this record.</p>`;
+ <section class="panel" style="margin-top:24px"><h3>Submission history</h3>${progress.history.length ? progress.history.map((h, i) => `<article class="history-case"><h3>${i + 1}. ${escapeHTML(h.title)}</h3><p>${escapeHTML(h.previous_level || (i ? progress.history[i - 1].level : "Needs guidance"))} → <b>${escapeHTML(h.level)}</b></p><p class="${h.result.success ? "pass" : "fail"}">${escapeHTML(h.completion || (h.result.success ? "Evidence accepted" : "Needs revision"))} · ${h.hints_used} hints</p>${evidenceDetails(h)}</article>`).join("") : '<div class="empty">No submissions yet. Start in the practice room.</div>'}</section>
+ <p class="muted">Verified across scenarios requires independent success in the coupon and refund-exception exercises. An unsuccessful recorded submission lowers the level by one. Comparisons leave levels and submission history unchanged, but later attempts on that exercise count as practice after feedback.</p>`;
 }
 function practiceSequence(record) {
   return tasks
     .map((task, index) => {
-      const accepted = record.history.some(
-        (entry) => entry.task_id === task.id && entry.result.success,
-      );
+      const accepted = [...record.history]
+        .reverse()
+        .find((entry) => entry.task_id === task.id && entry.result.success);
       const attempted = record.history.some(
         (entry) => entry.task_id === task.id,
       );
       const status = accepted
-        ? "Evidence accepted"
+        ? accepted.completion || "Evidence accepted"
         : attempted
           ? "Needs revision"
           : "Not started";
@@ -361,7 +375,11 @@ $("#home").onclick = (e) => {
   overview();
 };
 button("reset", async () => {
-  if (confirm("Clear this local learner’s submissions and hints?")) {
+  if (
+    confirm(
+      "Clear this local learner’s submissions, hints, and assistance record?",
+    )
+  ) {
     await api("reset", {});
     drafts = {};
     await overview();

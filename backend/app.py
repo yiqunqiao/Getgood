@@ -24,6 +24,7 @@ class Submission(BaseModel):
     tests: str = Field(min_length=1,max_length=20000)
     judgements: list[Judgement] = Field(default_factory=list,max_length=20)
     boundaries: dict[str,Literal['verified','unverified','need_mentor']] = Field(default_factory=dict)
+    consequence: Literal['duplicate_effect','legitimate_request','unrelated'] | None = None
 
 @app.middleware('http')
 async def local_only(request: Request, call_next):
@@ -39,7 +40,15 @@ def task_for(task_id):
     return json.loads((ROOT/'tasks'/task_id/'task.json').read_text())
 
 def state():
-    if (DATA/'progress.json').exists(): return json.loads((DATA/'progress.json').read_text())
+    if (DATA/'progress.json').exists():
+        try:
+            saved=json.loads((DATA/'progress.json').read_text())
+            if (isinstance(saved,dict) and saved.get('level') in
+                    ['Needs guidance','Independent','Verified across scenarios'] and
+                    isinstance(saved.get('history'),list) and isinstance(saved.get('hints'),dict)):
+                return saved
+        except (OSError,UnicodeError,json.JSONDecodeError):
+            pass
     return dict(level='Needs guidance',history=[],hints={})
 
 def save(value):
@@ -56,7 +65,7 @@ def tasks():
     result=[]
     for id in ['t1_refund','t2_coupon','t3_legit_refund']:
         task=task_for(id)
-        public={k:v for k,v in task.items() if k not in ['known_risks','risk_locations','required_variants','hints','boundaries']}
+        public={k:v for k,v in task.items() if k not in ['known_risks','risk_locations','required_variants','hints','boundaries','expected_consequence']}
         public['boundaries']=[{k:v for k,v in b.items() if k!='variants'} for b in task['boundaries']]
         public['code']=(ROOT/'tasks'/id/'shown.py').read_text()
         result.append(public)
@@ -85,6 +94,7 @@ def demo(task_id:str,kind:Literal['good','bad']):
     task=task_for(task_id)
     return dict(tests=(ROOT/'tasks'/task_id/f'demo_{kind}.py').read_text(),
         judgements=task['known_risks'] if kind=='good' else [],
+        consequence=task['expected_consequence'] if kind=='good' else 'unrelated',
         boundaries={'seq_retry':'verified' if kind=='good' else 'unverified',
                     'new_request':'verified' if kind=='good' and task_id!='t1_refund' else 'unverified',
                     'concurrent':'unverified'})
@@ -94,13 +104,17 @@ def run(submission:Submission):
     task_for(submission.task_id)
     return run_tests(submission.task_id,'reference',submission.tests)
 
-def evidence_reason(result, independent):
+def evidence_reason(result, independent, guided=False):
     if result['success']:
-        return ('Required variants caught, legitimate reference behaviour accepted, and boundary claims supported. '
-                + ('Completed without hints.' if independent else 'Completed with guidance.'))
+        completion=('Completed in the Guided stage.' if guided else
+                    'Completed without hints.' if independent else 'Completed with guidance.')
+        return ('Required variants caught, legitimate reference behaviour accepted, and verified boundary claims supported. '
+                + completion)
     reasons=[]
     if result['judgement']['missed']: reasons.append('A risk was missed.')
     if result['judgement']['false_positive']: reasons.append('A risk judgement was not supported.')
+    if not result['consequence']['correct'] and not result['judgement']['missed']:
+        reasons.append('The consequence judgement needs revision.')
     if result['reference']['status']=='failed': reasons.append('Tests rejected legitimate reference behaviour.')
     elif result['reference']['status']!='passed': reasons.append('Tests could not establish valid evidence.')
     elif not all(v['caught'] for v in result['variants'].values()): reasons.append('Required behavioural evidence is incomplete.')
@@ -114,7 +128,7 @@ def compare(submission:Submission):
         result=evaluate(task,submission.model_dump())
         s=state(); used=s['hints'].get(task['id'],0)
     return {**result,'recorded':False,'hints_used':used,'previous_level':s['level'],
-            'level':s['level'],'reason':evidence_reason(result,result['success'] and used==0),
+            'level':s['level'],'reason':evidence_reason(result,result['success'] and used==0 and task['stage']!='Guided',task['stage']=='Guided'),
             'level_reason':'Comparison only. Growth record and level are unchanged.'}
 
 @app.post('/api/submit')
@@ -124,7 +138,7 @@ def submit(submission:Submission):
     with LOCK:
         result=evaluate(task,submission.model_dump())
         s=state(); used=s['hints'].get(task['id'],0)
-        independent=result['success'] and used==0
+        independent=result['success'] and used==0 and task['stage']!='Guided'
         old=s['level']
         levels=['Needs guidance','Independent','Verified across scenarios']
         if result['success']:
@@ -136,7 +150,7 @@ def submit(submission:Submission):
                 if {'t2_coupon','t3_legit_refund'}<=previous: s['level']=levels[2]
         else:
             s['level']=levels[max(0,levels.index(old)-1)]
-        reason=evidence_reason(result,independent)
+        reason=evidence_reason(result,independent,task['stage']=='Guided')
         if not result['success']:
             level_reason='Unsuccessful recorded submission lowers the level by one, to a minimum of Needs guidance.'
         elif s['level']=='Verified across scenarios':

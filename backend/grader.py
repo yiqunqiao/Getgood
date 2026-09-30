@@ -68,13 +68,16 @@ def evaluate(task, submission):
     missed=[risk for risk in expected if not any(matches(risk,c) for c in claims)]
     false_positive=[claim for claim in claims if not any(matches(r,claim) for r in expected)]
     judgement_ok=not missed and not false_positive
+    consequence_ok=submission.get('consequence')==task['expected_consequence']
     boundaries={}
     for boundary in task['boundaries']:
         claim=submission['boundaries'].get(boundary['id'],'unverified')
         supported=bool(boundary['variants']) and all(variants[v]['caught'] for v in boundary['variants'])
         boundaries[boundary['id']]='supported' if claim=='verified' and supported else 'unsupported' if claim=='verified' else claim
-    success=(judgement_ok and reference['status']=='passed' and
+    success=(judgement_ok and consequence_ok and reference['status']=='passed' and
              all(variants[v]['caught'] for v in task['required_variants']) and
              'unsupported' not in boundaries.values())
     return dict(judgement=dict(hit=hit,missed=missed,false_positive=false_positive,correct=judgement_ok),
+        consequence=dict(correct=consequence_ok,selected=submission.get('consequence'),
+                         expected=task['expected_consequence'] if consequence_ok else None),
         reference=reference,variants=variants,boundaries=boundaries,success=success)

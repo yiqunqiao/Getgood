@@ -1,22 +1,20 @@
-# Validation of this delivery
+# Validation status
 
-Executed in the build environment:
+The demo runs locally on trusted input. Submitted Python runs in a separate, time-limited process with the user's file permissions; this is not sandbox isolation. No real learner study has been conducted or claimed.
 
-- `python -m pytest tests -q`: **5 passed**. These include the full three-act API journey, regression after overblocking, invalid/empty/skipped test suites, unsupported concurrency claims, false positives, timeout handling, public task payloads and local POST-token enforcement.
+## Automated checks
+
+- `.venv/bin/python -m pytest tests -q`: **10 passed** on 2026-09-30. Coverage includes the full three-act progression, Guided success without hints staying at Needs guidance, consequence scoring, comparison runs leaving progress unchanged, risk-location matching, supported boundaries, invalid tests, execution timeout, malformed progress fallback, and API token enforcement.
 - `node --check frontend/app.js`: passed.
-- `python -m compileall -q backend harness tasks tests run.py`: passed.
-- Started `python run.py`: FastAPI/Uvicorn started successfully on loopback port 8000.
+- Python syntax check: passed.
+- GitHub Actions: workflow added to run the integration suite and syntax check; its first remote run must be checked after push.
 
-A deprecation warning from Starlette's httpx-based test client was emitted; all tests passed.
+The local test run emitted one upstream Starlette/httpx TestClient deprecation warning.
 
-Browser visual and click-through verification remains outstanding: the environment did not have a browser executable, and both attempted browser downloads returned invalid archives. The UI must be visually checked on the team's computer. No browser screenshot or browser test pass is claimed.
+## Browser review
 
-No real learner study has been conducted. No claim of measured training effectiveness is included.
+Browser checks confirmed that the Guided consequence question stays hidden until a risk is marked, the evidence example fills the question, full comparison leaves progress unchanged, fixed coaching appears after the risk is identified, and the PR preview accepts a senior comment and tag, shows all three steps with local status, and opens the selected exercise. The previous review also confirmed anonymous variant feedback for a missed Guided risk. Full coverage of every visual state and viewport is not claimed.
 
-## Demo-gap revision (2026-09-29)
+## Limits
 
-- Local integration suite: **7 passed** (one upstream Starlette/httpx deprecation warning).
-- Added coverage for failed and successful comparison runs preserving progress byte-for-byte, comparison not contributing to promotion, subsequent recorded promotion, accepted request_id lines, rejected unrelated lines/types, saved boundary declarations and transition explanations.
-- JavaScript syntax and Git whitespace checks passed.
-- Browser checks confirmed anonymous hidden-variant feedback for a missed guided risk, the comparison-only banner with unchanged level, and senior tag confirmation revealing the three-task practice sequence.
-- Complete browser traversal of every growth-record state has not been automated; backend evidence persistence and three-act progression are covered by integration tests.
+The case variants are hidden in the exercise UI, not inaccessible to a person with repository access. The PR page is a prepared concept case and does not integrate with GitHub. Concurrency is outside validated scope. Growth levels describe observed exercise evidence, not a general certification of engineering competence.

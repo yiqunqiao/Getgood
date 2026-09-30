@@ -100,3 +100,30 @@ def test_risk_locations_and_boundary_history(client):
         payload['judgements'][0]={'line':1,'type':'precision'}
         assert not client.post('/api/compare',json=payload).json()['judgement']['correct']
     assert all('risk_locations' not in t for t in client.get('/api/tasks').json())
+
+
+def test_guided_success_without_hints_does_not_promote(client):
+    result=client.post('/api/submit',json=example(client,'t1_refund')).json()
+    assert result['success']
+    assert result['hints_used']==0
+    assert result['previous_level']==result['level']=='Needs guidance'
+    assert client.get('/api/progress').json()['history'][0]['independent'] is False
+    transfer=client.post('/api/submit',json=example(client,'t2_coupon')).json()
+    assert transfer['success'] and transfer['level']=='Independent'
+
+
+def test_consequence_is_checked_without_revealing_answer(client):
+    payload=example(client,'t1_refund')
+    payload['consequence']='unrelated'
+    result=client.post('/api/compare',json=payload).json()
+    assert not result['success']
+    assert result['judgement']['correct']
+    assert result['consequence']=={'correct':False,'selected':'unrelated','expected':None}
+    assert 'expected_consequence' not in client.get('/api/tasks').json()[0]
+    assert client.get('/api/progress').json()['history']==[]
+
+
+def test_corrupt_local_progress_uses_empty_state(client):
+    module.DATA.mkdir(exist_ok=True)
+    (module.DATA/'progress.json').write_text('{broken')
+    assert client.get('/api/progress').json()=={'level':'Needs guidance','history':[],'hints':{}}

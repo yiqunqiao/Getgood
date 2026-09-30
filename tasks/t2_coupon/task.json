@@ -42,5 +42,6 @@
       1,
       5
     ]
-  }
+  },
+  "expected_consequence": "duplicate_effect"
 }
